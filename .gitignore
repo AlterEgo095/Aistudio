@@ -102,3 +102,4 @@ download/
 
 # Caddy config (sandbox)
 Caddyfile
+db/custom.db
