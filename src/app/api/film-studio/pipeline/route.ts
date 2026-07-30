@@ -14,6 +14,13 @@ import {
   validateScriptCoherence,
 } from '@/lib/film-studio/pipeline'
 import {
+  generateSpeech,
+  getVoiceProfileForCharacter,
+  getVoiceProfileForPreset,
+  VOICE_PROFILES,
+  generateMultiVoiceSpeech,
+} from '@/lib/video/voice-router'
+import {
   CharacterBible,
   ScenePlan,
   CinematographicDirection,
@@ -208,8 +215,8 @@ export async function POST(req: NextRequest) {
           }
           send({ step: 'segments', status: 'done', message: `${segmentPaths.length} segments animés`, progress: 100 })
 
-          // ===== STEP 3: Generate multi-voice audio (per-character voices) =====
-          send({ step: 'voiceover', status: 'running', message: 'Voix multiples par personnage...', progress: 0 })
+          // ===== STEP 3: Generate multi-voice audio using Voice Router =====
+          send({ step: 'voiceover', status: 'running', message: 'Voix françaises multiples (Voice Router)...', progress: 0 })
 
           const voiceoverPath = path.join(workDir, 'voiceover.wav')
           const allSegments: { start: number; end: number; text: string }[] = []
@@ -222,13 +229,35 @@ export async function POST(req: NextRequest) {
             send({
               step: 'voiceover',
               status: 'running',
-              message: `Scène ${i + 1}/${scenes.length}: ${scene.dialogue.length} dialogue(s)`,
+              message: `Scène ${i + 1}/${scenes.length}: ${scene.dialogue.length} dialogue(s) — Voice Router`,
               progress: (i / scenes.length) * 100,
             })
 
             try {
-              const result = await generateSceneMultiVoiceAudio(scene, characters, zai, sceneAudioPath)
-              // Offset segments by accumulated start
+              // Build voice parts for this scene using Voice Router profiles
+              const voiceParts: { text: string; profile: any; isNarration: boolean }[] = []
+
+              // Narration → narrator profile
+              if (scene.narration) {
+                voiceParts.push({
+                  text: scene.narration,
+                  profile: VOICE_PROFILES['darktech-narrator'],
+                  isNarration: true,
+                })
+              }
+
+              // Dialogues → per-character voice profiles
+              for (const d of scene.dialogue) {
+                const char = characters.find((c) => c.name === d.characterName)
+                const profile = char
+                  ? getVoiceProfileForCharacter(char.role, char.faceDescription ?? undefined, char.voiceStyle ?? undefined)
+                  : VOICE_PROFILES['default']
+                voiceParts.push({ text: d.line, profile, isNarration: false })
+              }
+
+              // Generate multi-voice speech
+              const result = await generateMultiVoiceSpeech(voiceParts, sceneAudioPath)
+
               result.segments.forEach((s) => {
                 allSegments.push({
                   start: s.start + accumulatedStart,
@@ -240,24 +269,12 @@ export async function POST(req: NextRequest) {
               sceneAudioPaths.push(sceneAudioPath)
             } catch (e: any) {
               console.warn(`Scene ${i + 1} multi-voice failed, fallback to single voice:`, e?.message)
-              // Fallback: single voice for the whole scene
+              // Fallback: single voice for the whole scene using Voice Router
               const fallbackText = buildSceneAudioText(scene)
-              const ttsRes = await zai.audio.tts.create({
-                input: fallbackText.slice(0, 500),
-                voice: 'tongtong',
-                speed: 0.92,
-                response_format: 'wav',
-                stream: false,
-              })
-              const buf = Buffer.from(new Uint8Array(await ttsRes.arrayBuffer()))
-              await fs.writeFile(sceneAudioPath, buf)
-              let dur = 5
-              try {
-                const { stdout } = await execAsync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${sceneAudioPath}"`)
-                dur = parseFloat(stdout.trim())
-              } catch {}
-              allSegments.push({ start: accumulatedStart, end: accumulatedStart + dur, text: fallbackText })
-              accumulatedStart += dur
+              const fallbackProfile = VOICE_PROFILES['default']
+              const result = await generateSpeech(fallbackText.slice(0, 500), fallbackProfile, sceneAudioPath)
+              allSegments.push({ start: accumulatedStart, end: accumulatedStart + result.duration, text: fallbackText })
+              accumulatedStart += result.duration
               sceneAudioPaths.push(sceneAudioPath)
             }
           }

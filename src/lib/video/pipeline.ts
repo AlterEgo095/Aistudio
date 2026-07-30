@@ -20,6 +20,7 @@ import { generateFullSoundDesign, detectEmotionFromText, SoundDesignConfig } fro
 import { insertBRollTransitions, getBRollForTone } from './b-roll'
 import { generateCinematicHook, generateHookPhrase, applyRhythmMontage, detectEnergyLevel, generateCinematicOutro } from './cinematic-montage'
 import { hashKey, getCachedAsset, cacheAsset, cacheFile } from './cache'
+import { generateSpeech, getVoiceProfileForPreset, VOICE_PROFILES, VoiceProfile } from './voice-router'
 
 const execAsync = promisify(exec)
 
@@ -506,21 +507,19 @@ export async function generateVoiceover(
   scenes: Scene[],
   opts: PremiumVideoOptions,
   onProgress: ProgressCallback,
-): Promise<{ audioPath: string; segments: { start: number; end: number; text: string }[] } | null> {
+): Promise<{ audioPath: string; segments: { start: number; end: number; text: string }[]; audioDuration?: number } | null> {
   if (!opts.withVoiceover) {
     onProgress({ step: 'voiceover', status: 'done', message: 'Voix off désactivée', progress: 100 })
     return null
   }
 
-  onProgress({ step: 'voiceover', status: 'running', message: 'Génération narration française premium...' })
-  const zai = await getZai()
+  onProgress({ step: 'voiceover', status: 'running', message: 'Génération narration française premium (Voice Router)...' })
   const workDir = path.join(TMP_DIR, `job-${Date.now()}`)
   await fs.mkdir(workDir, { recursive: true })
 
   // Premium French narration:
   // - Use pauses (.) between scenes for breathing room
-  // - Slightly slower speed (0.92) for premium feel and better comprehension
-  // - Concatenate with sentence breaks for natural rhythm
+  // - Slightly slower speed for premium feel and better comprehension
   const fullText = scenes
     .map((s) => (s.narration ?? '').trim())
     .filter(Boolean)
@@ -529,43 +528,42 @@ export async function generateVoiceover(
   // Ensure text ends with proper punctuation
   const cleanText = fullText.replace(/\.+$/, '') + '.'
 
+  // Get voice profile based on preset
+  const voiceProfile = getVoiceProfileForPreset(opts.presetId ?? 'darktech')
+
   onProgress({
     step: 'voiceover',
     status: 'running',
-    message: `Synthèse vocale (${opts.voice}, vitesse premium)...`,
+    message: `Synthèse vocale (${voiceProfile.name}, moteur: ${voiceProfile.config.engine})...`,
     progress: 30,
   })
 
   // ===== CACHE CHECK: Skip TTS if identical text already synthesized =====
-  const ttsCacheK = hashKey('tts', cleanText.slice(0, 2000), opts.voice, '0.92')
+  const ttsCacheK = hashKey('tts-vr', cleanText.slice(0, 2000), voiceProfile.name)
   const cachedAudioPath = await getCachedAsset(ttsCacheK, 'audio')
-  let buffer: Buffer
+  const audioPath = path.join(workDir, 'voiceover.wav')
 
   if (cachedAudioPath) {
     console.log('[CACHE HIT] Voiceover — instant from cache')
     onProgress({ step: 'voiceover', status: 'running', message: 'Voix off depuis cache...', progress: 70 })
-    buffer = await fs.readFile(cachedAudioPath)
+    await fs.copyFile(cachedAudioPath, audioPath)
   } else {
-    const res = await withRetry(
-      () => zai.audio.tts.create({
-        input: cleanText.slice(0, 2000),
-        voice: opts.voice,
-        speed: 0.92, // premium slower pace for clarity + impact
-        response_format: 'wav',
-        stream: false,
-      }),
-      3, 3000, 'tts-voiceover',
-    )
+    // Use Voice Router (gTTS → espeak → Z.ai fallback chain)
+    const result = await generateSpeech(cleanText.slice(0, 2000), voiceProfile, audioPath)
 
-    const arrayBuffer = await res.arrayBuffer()
-    buffer = Buffer.from(new Uint8Array(arrayBuffer))
+    onProgress({
+      step: 'voiceover',
+      status: 'running',
+      message: `Audio généré via ${result.engine} (${result.duration.toFixed(1)}s)`,
+      progress: 80,
+    })
 
     // ===== CACHE SAVE =====
-    await cacheAsset(ttsCacheK, 'audio', buffer)
+    try {
+      const audioBuffer = await fs.readFile(audioPath)
+      await cacheAsset(ttsCacheK, 'audio', audioBuffer)
+    } catch {}
   }
-
-  const audioPath = path.join(workDir, 'voiceover.wav')
-  await fs.writeFile(audioPath, buffer)
 
   // Get actual audio duration for accurate subtitle timing
   let audioDuration = scenes.length * 10 // fallback
@@ -587,7 +585,7 @@ export async function generateVoiceover(
   onProgress({
     step: 'voiceover',
     status: 'done',
-    message: `Narration premium générée (${audioDuration.toFixed(1)}s)`,
+    message: `Narration premium générée (${audioDuration.toFixed(1)}s, ${voiceProfile.config.engine})`,
     progress: 100,
   })
 
