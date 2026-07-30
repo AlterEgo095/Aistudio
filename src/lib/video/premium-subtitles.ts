@@ -205,6 +205,55 @@ export function generateKaraokeSubtitles(
   return segments
 }
 
+/**
+ * Generate karaoke subtitles with PER-SCENE duration tracking.
+ * Each scene's narration is timed to match the actual audio duration for that scene.
+ * This provides much better subtitle-audio sync than uniform timing.
+ */
+export function generateAccurateKaraokeSubtitles(
+  scenes: Scene[],
+  sceneDurations: number[], // actual duration per scene (from audio analysis)
+): SubtitleSegment[] {
+  const segments: SubtitleSegment[] = []
+  let globalIndex = 1
+  let currentTime = 0
+
+  scenes.forEach((scene, sceneIdx) => {
+    const dur = sceneDurations[sceneIdx] ?? 10
+    const sceneStart = currentTime
+    const narration = (scene.narration ?? '').trim()
+    if (!narration) {
+      currentTime += dur
+      return
+    }
+
+    const wordGroups = splitIntoWordGroups(narration, 3)
+    const totalEstDuration = wordGroups.flat().reduce((sum, w) => sum + estimateWordDuration(w), 0)
+    const targetDuration = dur - 0.5
+    const scaleFactor = totalEstDuration > targetDuration ? targetDuration / totalEstDuration : 1
+
+    let localTime = sceneStart + 0.2
+
+    wordGroups.forEach((group) => {
+      const groupText = group.join(' ')
+      const groupDuration = group.reduce((sum, w) => sum + estimateWordDuration(w), 0) * scaleFactor
+
+      segments.push({
+        index: globalIndex++,
+        start: localTime,
+        end: localTime + groupDuration,
+        text: groupText,
+      })
+
+      localTime += groupDuration + 0.05
+    })
+
+    currentTime += dur
+  })
+
+  return segments
+}
+
 // Generate SRT file from segments
 export function segmentsToSRT(segments: SubtitleSegment[]): string {
   const formatTime = (sec: number) => {

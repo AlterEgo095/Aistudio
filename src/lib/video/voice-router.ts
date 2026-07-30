@@ -24,9 +24,35 @@ import { getZai } from '@/lib/zai'
 
 const execAsync = promisify(exec)
 
-export type TTSEngine = 'gtts' | 'espeak' | 'zai'
+export type TTSEngine = 'piper' | 'gtts' | 'espeak' | 'zai'
 export type VoiceGender = 'male' | 'female' | 'neutral'
 export type VoiceTone = 'narrator' | 'dramatic' | 'warm' | 'energetic' | 'calm'
+
+// Piper model paths
+const PIPER_MODELS: Record<string, string> = {
+  fr: '/home/z/.local/share/piper/models/fr_FR-siwis-medium.onnx',
+}
+
+/**
+ * Generate speech using Piper TTS (best offline quality)
+ * Natural French voice, runs locally, no internet required
+ */
+async function generateWithPiper(text: string, language: string, outputPath: string): Promise<void> {
+  const modelPath = PIPER_MODELS[language] ?? PIPER_MODELS['fr']
+  if (!modelPath) throw new Error(`No Piper model for language: ${language}`)
+
+  // Write text to temp file (Piper reads from stdin or file)
+  const textFilePath = outputPath.replace('.wav', '-input.txt')
+  await fs.writeFile(textFilePath, text.slice(0, 2000), 'utf-8')
+
+  await execAsync(
+    `cat "${textFilePath}" | piper --model "${modelPath}" --output_file "${outputPath}"`,
+    { timeout: 30000 },
+  )
+
+  // Cleanup
+  try { await fs.unlink(textFilePath) } catch {}
+}
 
 export interface VoiceConfig {
   engine: TTSEngine
@@ -272,20 +298,26 @@ export async function generateSpeech(
       usedEngine = 'espeak'
     }
   } else {
-    // French or other → try gTTS first (best quality)
+    // French or other → try Piper first (best offline quality), then gTTS, then espeak, then Z.ai
     try {
-      const slow = speed < 0.95
-      await generateWithGTTS(text, language, slow, rawPath)
-      usedEngine = 'gtts'
+      await generateWithPiper(text, language === 'francais' || language === 'français' ? 'fr' : language.slice(0, 2).toLowerCase(), rawPath)
+      usedEngine = 'piper'
     } catch (e: any) {
-      console.warn('gTTS failed, falling back to espeak:', e?.message)
+      console.warn('Piper TTS failed, falling back to gTTS:', e?.message)
       try {
-        await generateWithEspeak(text, language, speed, profile.config.pitch || 50, rawPath)
-        usedEngine = 'espeak'
+        const slow = speed < 0.95
+        await generateWithGTTS(text, language, slow, rawPath)
+        usedEngine = 'gtts'
       } catch (e2: any) {
-        console.warn('espeak failed, falling back to Z.ai:', e2?.message)
-        await generateWithZai(text, 'tongtong', speed, rawPath)
-        usedEngine = 'zai'
+        console.warn('gTTS failed, falling back to espeak:', e2?.message)
+        try {
+          await generateWithEspeak(text, language, speed, profile.config.pitch || 50, rawPath)
+          usedEngine = 'espeak'
+        } catch (e3: any) {
+          console.warn('espeak failed, falling back to Z.ai:', e3?.message)
+          await generateWithZai(text, 'tongtong', speed, rawPath)
+          usedEngine = 'zai'
+        }
       }
     }
   }

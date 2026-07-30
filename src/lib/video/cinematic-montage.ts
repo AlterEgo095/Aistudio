@@ -49,10 +49,12 @@ export async function generateCinematicHook(
   // 2. Animate with fast zoom + motion blur for impact
   const zoomFilter = `scale=${width * 4}:-1,zoompan=z='min(zoom+0.02,1.5)':d=${Math.round(duration * 30)}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=${width}x${height}:fps=30,scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black`
 
-  // 3. Add text overlay (the hook phrase)
+  // 3. Add text overlay (the hook phrase) — use textfile to avoid ALL escaping issues
   const fontSize = Math.round(height * 0.12)
-  const escapedText = hookText.replace(/'/g, "\\'").replace(/:/g, '\\:').replace(/,/g, '\\,').replace(/%/g, '\\%').slice(0, 100)
-  const textFilter = `,drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:text='${escapedText}':fontcolor=white:fontsize=${fontSize}:x=(w-text_w)/2:y=(h-text_h)/2:shadowcolor=black@0.8:shadowx=3:shadowy=3`
+  const subFontSize = Math.round(height * 0.04)
+  const textFilePath = path.join(workDir, 'hook-text.txt')
+  await fs.writeFile(textFilePath, hookText.slice(0, 100), 'utf-8')
+  const textFilter = `,drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile='${textFilePath}':fontcolor=white:fontsize=${fontSize}:x=(w-text_w)/2:y=(h-text_h)/2:shadowcolor=black@0.8:shadowx=3:shadowy=3`
 
   const cmd = `ffmpeg -y -loop 1 -i "${imgPath}" -vf "${zoomFilter}${textFilter},format=yuv420p" -t ${duration} -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p "${outputPath}"`
 
@@ -158,9 +160,11 @@ export async function generateCinematicOutro(
 ): Promise<void> {
   const fontSize = Math.round(height * 0.08)
   const subFontSize = Math.round(height * 0.04)
-  const escapedText = text.replace(/'/g, "\\'").replace(/:/g, '\\:').slice(0, 100)
+  const workDir = path.dirname(outputPath)
+  const textFilePath = path.join(workDir, 'outro-text.txt')
+  await fs.writeFile(textFilePath, text.slice(0, 100), 'utf-8')
 
-  const cmd = `ffmpeg -y -f lavfi -i "color=c=black:s=${width}x${height}:d=${duration}:r=30" -vf "fade=t=in:st=0:d=0.5,fade=t=out:st=${duration - 0.5}:d=0.5,drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:text='${escapedText}':fontcolor=white:fontsize=${fontSize}:x=(w-text_w)/2:y=(h-text_h)/2:shadowcolor=black@0.8:shadowx=2:shadowy=2,drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:text='Abonne-toi pour la suite':fontcolor=white@0.7:fontsize=${subFontSize}:x=(w-text_w)/2:y=h-${subFontSize * 3}" -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p "${outputPath}"`
+  const cmd = `ffmpeg -y -f lavfi -i "color=c=black:s=${width}x${height}:d=${duration}:r=30" -vf "fade=t=in:st=0:d=0.5,fade=t=out:st=${duration - 0.5}:d=0.5,drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile='${textFilePath}':fontcolor=white:fontsize=${fontSize}:x=(w-text_w)/2:y=(h-text_h)/2:shadowcolor=black@0.8:shadowx=2:shadowy=2,drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:text='Abonne-toi pour la suite':fontcolor=white@0.7:fontsize=${subFontSize}:x=(w-text_w)/2:y=h-${subFontSize * 3}" -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p "${outputPath}"`
 
   await execAsync(cmd, { timeout: 30000 })
 }
