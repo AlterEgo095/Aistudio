@@ -171,9 +171,9 @@ tts.save('${mp3Path.replace(/'/g, "\\'")}')
   await fs.writeFile(scriptPath, script)
 
   // Pipe text via stdin to avoid shell escaping
-  const { exec } = require('child_process')
+  const childProcess = exec as unknown as (cmd: string, opts: any, cb: (err: any) => void) => any
   await new Promise<void>((resolve, reject) => {
-    const proc = exec(`python3 "${scriptPath}"`, { timeout: 30000 }, (err) => {
+    const proc = childProcess(`python3 "${scriptPath}"`, { timeout: 30000 }, (err: any) => {
       if (err) reject(err)
       else resolve()
     })
