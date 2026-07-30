@@ -28,6 +28,9 @@ export type TTSEngine = 'piper' | 'gtts' | 'espeak' | 'zai'
 export type VoiceGender = 'male' | 'female' | 'neutral'
 export type VoiceTone = 'narrator' | 'dramatic' | 'warm' | 'energetic' | 'calm'
 
+// Piper binary path (use absolute path for reliability)
+const PIPER_BIN = '/home/z/.venv/bin/piper'
+
 // Piper model paths
 const PIPER_MODELS: Record<string, string> = {
   fr: '/home/z/.local/share/piper/models/fr_FR-siwis-medium.onnx',
@@ -46,7 +49,7 @@ async function generateWithPiper(text: string, language: string, outputPath: str
   await fs.writeFile(textFilePath, text.slice(0, 2000), 'utf-8')
 
   await execAsync(
-    `cat "${textFilePath}" | piper --model "${modelPath}" --output_file "${outputPath}"`,
+    `cat "${textFilePath}" | ${PIPER_BIN} --model "${modelPath}" --output_file "${outputPath}"`,
     { timeout: 30000 },
   )
 
@@ -197,9 +200,10 @@ tts.save('${mp3Path.replace(/'/g, "\\'")}')
   await fs.writeFile(scriptPath, script)
 
   // Pipe text via stdin to avoid shell escaping
+  const PYTHON_BIN = '/home/z/.venv/bin/python3'
   const childProcess = exec as unknown as (cmd: string, opts: any, cb: (err: any) => void) => any
   await new Promise<void>((resolve, reject) => {
-    const proc = childProcess(`python3 "${scriptPath}"`, { timeout: 30000 }, (err: any) => {
+    const proc = childProcess(`"${PYTHON_BIN}" "${scriptPath}"`, { timeout: 30000 }, (err: any) => {
       if (err) reject(err)
       else resolve()
     })
