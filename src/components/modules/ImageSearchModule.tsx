@@ -86,7 +86,9 @@ export function ImageSearchModule() {
                 alt={img.caption ?? query}
                 className="h-full w-full object-cover transition group-hover:scale-105"
                 onError={(e) => {
-                  ;(e.target as HTMLImageElement).parentElement?.style.setProperty('display', 'none')
+                  const target = e.target as HTMLImageElement
+                  const parent = target.parentElement
+                  if (parent) parent.style.display = 'none'
                 }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition p-2 flex flex-col justify-end">

@@ -6,14 +6,17 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import {
   Sparkles, Mic, Volume2, Eye, Wand2, Edit3, Search, Film, Globe,
-  FileText, Languages, Code2, Video, Menu, Github, Zap, X,
+  FileText, Languages, Code2, Video, Menu, Zap, Activity, BookOpen,
+  Captions, PenLine, MessageSquare, Clapperboard,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-// Lazy load modules for better performance
+// Lazy load all modules for optimal performance
+const FilmStudioModule = lazy(() => import('@/components/modules/film-studio/FilmStudioModule').then(m => ({ default: m.FilmStudioModule })))
 const ChatModule = lazy(() => import('@/components/modules/ChatModule').then(m => ({ default: m.ChatModule })))
 const ASRModule = lazy(() => import('@/components/modules/ASRModule').then(m => ({ default: m.ASRModule })))
 const TTSModule = lazy(() => import('@/components/modules/TTSModule').then(m => ({ default: m.TTSModule })))
+const VoiceConversationModule = lazy(() => import('@/components/modules/VoiceConversationModule').then(m => ({ default: m.VoiceConversationModule })))
 const VisionModule = lazy(() => import('@/components/modules/VisionModule').then(m => ({ default: m.VisionModule })))
 const ImageGenModule = lazy(() => import('@/components/modules/ImageGenModule').then(m => ({ default: m.ImageGenModule })))
 const ImageEditModule = lazy(() => import('@/components/modules/ImageEditModule').then(m => ({ default: m.ImageEditModule })))
@@ -25,6 +28,11 @@ const WebReaderModule = lazy(() => import('@/components/modules/WebReaderModule'
 const SummarizerModule = lazy(() => import('@/components/modules/SummarizerModule').then(m => ({ default: m.SummarizerModule })))
 const TranslatorModule = lazy(() => import('@/components/modules/TranslatorModule').then(m => ({ default: m.TranslatorModule })))
 const CodeGenModule = lazy(() => import('@/components/modules/CodeGenModule').then(m => ({ default: m.CodeGenModule })))
+const RAGModule = lazy(() => import('@/components/modules/RAGModule').then(m => ({ default: m.RAGModule })))
+const SubtitlesModule = lazy(() => import('@/components/modules/SubtitlesModule').then(m => ({ default: m.SubtitlesModule })))
+const OCRModule = lazy(() => import('@/components/modules/OCRModule').then(m => ({ default: m.OCRModule })))
+const SentimentModule = lazy(() => import('@/components/modules/SentimentModule').then(m => ({ default: m.SentimentModule })))
+const ContentWriterModule = lazy(() => import('@/components/modules/ContentWriterModule').then(m => ({ default: m.ContentWriterModule })))
 
 interface ModuleDef {
   id: string
@@ -37,34 +45,35 @@ interface ModuleDef {
 }
 
 const MODULES: ModuleDef[] = [
-  // Voix & Audio (priority group)
-  { id: 'asr', name: 'Reconnaissance Vocale', desc: 'Parole → Texte', icon: Mic, color: 'text-rose-500 bg-rose-500/10', group: 'Voix & Audio', badge: 'HOT' },
-  { id: 'tts', name: 'Synthèse Vocale', desc: 'Texte → Voix', icon: Volume2, color: 'text-emerald-500 bg-emerald-500/10', group: 'Voix & Audio', badge: 'HOT' },
-  { id: 'chat', name: 'Assistant IA', desc: 'Chat LLM avec voix', icon: Sparkles, color: 'text-violet-500 bg-violet-500/10', group: 'Voix & Audio', badge: 'TTS' },
+  // 🎬 AI FILM STUDIO — Module principal (placé en tout premier, badge MAIN)
+  { id: 'film-studio', name: 'AI Film Studio', desc: 'Séries & films IA premium', icon: Clapperboard, color: 'text-violet-500 bg-violet-500/10', group: 'Studio Principal', badge: 'MAIN' },
 
-  // Vision
-  { id: 'vision', name: 'Vision Multimodale', desc: 'Analyse images/PDF', icon: Eye, color: 'text-cyan-500 bg-cyan-500/10', group: 'Vision' },
-  { id: 'video-u', name: 'Compréhension Vidéo', desc: 'Analyse vidéo IA', icon: Video, color: 'text-pink-500 bg-pink-500/10', group: 'Vision' },
+  // 🎬 STUDIO VIDÉO — Module secondaire (génération rapide)
+  { id: 'video-gen', name: 'Studio Vidéo', desc: 'Production vidéo IA', icon: Film, color: 'text-purple-500 bg-purple-500/10', group: 'Studio Principal' },
 
-  // Image
-  { id: 'img-gen', name: 'Génération Images', desc: 'Texte → Image', icon: Wand2, color: 'text-fuchsia-500 bg-fuchsia-500/10', group: 'Image' },
-  { id: 'img-edit', name: 'Édition Images', desc: 'Modifier par prompt', icon: Edit3, color: 'text-orange-500 bg-orange-500/10', group: 'Image' },
-  { id: 'img-search', name: 'Recherche Images', desc: 'Images web réelles', icon: Search, color: 'text-blue-500 bg-blue-500/10', group: 'Image' },
-
-  // Vidéo
-  { id: 'video-gen', name: 'Génération Vidéo', desc: 'Texte → Vidéo', icon: Film, color: 'text-purple-500 bg-purple-500/10', group: 'Vidéo' },
-
-  // Recherche & Web
-  { id: 'web-search', name: 'Recherche Web', desc: 'Temps réel', icon: Globe, color: 'text-teal-500 bg-teal-500/10', group: 'Recherche & Web' },
-  { id: 'web-reader', name: 'Lecteur Web', desc: 'Extraire page web', icon: FileText, color: 'text-indigo-500 bg-indigo-500/10', group: 'Recherche & Web' },
-
-  // Texte
-  { id: 'summarize', name: 'Synthèse Auto', desc: 'Résumé intelligent', icon: FileText, color: 'text-amber-500 bg-amber-500/10', group: 'Texte' },
-  { id: 'translate', name: 'Traduction', desc: '13+ langues', icon: Languages, color: 'text-green-500 bg-green-500/10', group: 'Texte' },
-  { id: 'code', name: 'Génération Code', desc: '17 langages', icon: Code2, color: 'text-sky-500 bg-sky-500/10', group: 'Texte' },
+  // 📚 Autres modules IA (regroupés sous "Modules IA")
+  { id: 'voice-conv', name: 'Conversation Vocale', desc: 'Voix → IA → Voix', icon: Activity, color: 'text-fuchsia-500 bg-fuchsia-500/10', group: 'Modules IA' },
+  { id: 'asr', name: 'Reconnaissance Vocale', desc: 'Parole → Texte', icon: Mic, color: 'text-rose-500 bg-rose-500/10', group: 'Modules IA' },
+  { id: 'tts', name: 'Synthèse Vocale', desc: 'Texte → Voix', icon: Volume2, color: 'text-emerald-500 bg-emerald-500/10', group: 'Modules IA' },
+  { id: 'subtitles', name: 'Sous-titres Auto', desc: 'Audio → SRT traduit', icon: Captions, color: 'text-amber-500 bg-amber-500/10', group: 'Modules IA' },
+  { id: 'chat', name: 'Assistant IA', desc: 'Chat LLM + streaming + voix', icon: Sparkles, color: 'text-violet-500 bg-violet-500/10', group: 'Modules IA' },
+  { id: 'vision', name: 'Vision Multimodale', desc: 'Analyse images/PDF', icon: Eye, color: 'text-cyan-500 bg-cyan-500/10', group: 'Modules IA' },
+  { id: 'ocr', name: 'OCR & Documents', desc: 'Factures, contrats, PDF', icon: FileText, color: 'text-blue-500 bg-blue-500/10', group: 'Modules IA' },
+  { id: 'video-u', name: 'Compréhension Vidéo', desc: 'Analyse vidéo IA', icon: Video, color: 'text-pink-500 bg-pink-500/10', group: 'Modules IA' },
+  { id: 'img-gen', name: 'Génération Images', desc: 'Texte → Image', icon: Wand2, color: 'text-fuchsia-500 bg-fuchsia-500/10', group: 'Modules IA' },
+  { id: 'img-edit', name: 'Édition Images', desc: 'Modifier par prompt', icon: Edit3, color: 'text-orange-500 bg-orange-500/10', group: 'Modules IA' },
+  { id: 'img-search', name: 'Recherche Images', desc: 'Images web réelles', icon: Search, color: 'text-blue-500 bg-blue-500/10', group: 'Modules IA' },
+  { id: 'rag', name: 'Assistant RAG', desc: 'Recherche + sources', icon: BookOpen, color: 'text-indigo-500 bg-indigo-500/10', group: 'Modules IA' },
+  { id: 'web-search', name: 'Recherche Web', desc: 'Temps réel', icon: Globe, color: 'text-teal-500 bg-teal-500/10', group: 'Modules IA' },
+  { id: 'web-reader', name: 'Lecteur Web', desc: 'Extraire page web', icon: FileText, color: 'text-indigo-500 bg-indigo-500/10', group: 'Modules IA' },
+  { id: 'summarize', name: 'Synthèse Auto', desc: 'Résumé intelligent', icon: FileText, color: 'text-amber-500 bg-amber-500/10', group: 'Modules IA' },
+  { id: 'translate', name: 'Traduction', desc: '13+ langues', icon: Languages, color: 'text-green-500 bg-green-500/10', group: 'Modules IA' },
+  { id: 'code', name: 'Génération Code', desc: '17 langages', icon: Code2, color: 'text-sky-500 bg-sky-500/10', group: 'Modules IA' },
+  { id: 'content', name: 'Rédaction Contenu', desc: 'Emails, articles, posts', icon: PenLine, color: 'text-violet-500 bg-violet-500/10', group: 'Modules IA' },
+  { id: 'sentiment', name: 'Analyse Sentiment', desc: 'Émotions + score', icon: Activity, color: 'text-rose-500 bg-rose-500/10', group: 'Modules IA' },
 ]
 
-const GROUPS = ['Voix & Audio', 'Vision', 'Image', 'Vidéo', 'Recherche & Web', 'Texte']
+const GROUPS = ['Studio Principal', 'Modules IA']
 
 function ModuleFallback() {
   return (
@@ -79,20 +88,27 @@ function ModuleFallback() {
 
 function ModuleRouter({ id }: { id: string }) {
   switch (id) {
+    case 'film-studio': return <FilmStudioModule />
+    case 'voice-conv': return <VoiceConversationModule />
     case 'chat': return <ChatModule />
     case 'asr': return <ASRModule />
     case 'tts': return <TTSModule />
+    case 'subtitles': return <SubtitlesModule />
     case 'vision': return <VisionModule />
+    case 'ocr': return <OCRModule />
     case 'img-gen': return <ImageGenModule />
     case 'img-edit': return <ImageEditModule />
     case 'img-search': return <ImageSearchModule />
     case 'video-gen': return <VideoGenModule />
     case 'video-u': return <VideoUnderstandingModule />
+    case 'rag': return <RAGModule />
     case 'web-search': return <WebSearchModule />
     case 'web-reader': return <WebReaderModule />
     case 'summarize': return <SummarizerModule />
     case 'translate': return <TranslatorModule />
     case 'code': return <CodeGenModule />
+    case 'content': return <ContentWriterModule />
+    case 'sentiment': return <SentimentModule />
     default: return null
   }
 }
@@ -106,52 +122,60 @@ function Sidebar({ active, onSelect }: { active: string; onSelect: (id: string) 
         </div>
         <div>
           <h1 className="font-bold leading-tight">AI Hub</h1>
-          <p className="text-xs text-muted-foreground">14 modules IA</p>
+          <p className="text-xs text-muted-foreground">{MODULES.length} modules IA</p>
         </div>
       </div>
 
       <ScrollArea className="flex-1">
         <div className="px-2 py-3 space-y-4">
-          {GROUPS.map((group) => (
-            <div key={group}>
-              <h3 className="px-2 mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
-                {group}
-              </h3>
-              <div className="space-y-0.5">
-                {MODULES.filter((m) => m.group === group).map((m) => {
-                  const Icon = m.icon
-                  const isActive = active === m.id
-                  return (
-                    <button
-                      key={m.id}
-                      onClick={() => onSelect(m.id)}
-                      className={cn(
-                        'w-full flex items-center gap-3 rounded-lg px-2.5 py-2 text-left transition group',
-                        isActive
-                          ? 'bg-secondary'
-                          : 'hover:bg-secondary/60',
-                      )}
-                    >
-                      <div className={cn('flex h-8 w-8 items-center justify-center rounded-md', m.color)}>
-                        <Icon className="h-4 w-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-sm font-medium truncate">{m.name}</span>
-                          {m.badge && (
-                            <span className="text-[10px] px-1 py-px rounded bg-rose-500/15 text-rose-500 font-semibold">
-                              {m.badge}
-                            </span>
-                          )}
+          {GROUPS.map((group) => {
+            const groupModules = MODULES.filter((m) => m.group === group)
+            if (groupModules.length === 0) return null
+            return (
+              <div key={group}>
+                <h3 className="px-2 mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  {group}
+                </h3>
+                <div className="space-y-0.5">
+                  {groupModules.map((m) => {
+                    const Icon = m.icon
+                    const isActive = active === m.id
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => onSelect(m.id)}
+                        className={cn(
+                          'w-full flex items-center gap-3 rounded-lg px-2.5 py-2 text-left transition group',
+                          isActive ? 'bg-secondary' : 'hover:bg-secondary/60',
+                        )}
+                      >
+                        <div className={cn('flex h-8 w-8 items-center justify-center rounded-md', m.color)}>
+                          <Icon className="h-4 w-4" />
                         </div>
-                        <p className="text-xs text-muted-foreground truncate">{m.desc}</p>
-                      </div>
-                    </button>
-                  )
-                })}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-medium truncate">{m.name}</span>
+                            {m.badge && (
+                              <span className={cn(
+                                'text-[10px] px-1 py-px rounded font-semibold',
+                                m.badge === 'MAIN' && 'bg-purple-500 text-white',
+                                m.badge === 'NEW' && 'bg-emerald-500/15 text-emerald-600',
+                                m.badge === 'HOT' && 'bg-rose-500/15 text-rose-500',
+                                m.badge === 'TTS' && 'bg-violet-500/15 text-violet-500',
+                              )}>
+                                {m.badge}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">{m.desc}</p>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </ScrollArea>
 
@@ -163,7 +187,7 @@ function Sidebar({ active, onSelect }: { active: string; onSelect: (id: string) 
           className="flex items-center justify-between rounded-lg px-2.5 py-2 text-xs text-muted-foreground hover:bg-secondary"
         >
           <span>Propulsé par Z.ai SDK</span>
-          <Github className="h-3.5 w-3.5" />
+          <MessageSquare className="h-3.5 w-3.5" />
         </a>
       </div>
     </div>
@@ -176,11 +200,10 @@ export default function Home() {
       const hash = window.location.hash.slice(1)
       if (hash && MODULES.some(m => m.id === hash)) return hash
     }
-    return 'asr' // Start with ASR (voice & audio focus)
+    return 'film-studio' // AI Film Studio is the default landing page
   })
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  // Update hash on module change
   useEffect(() => {
     if (typeof window !== 'undefined') {
       window.location.hash = active
@@ -210,15 +233,10 @@ export default function Home() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar */}
         <header className="flex items-center gap-2 border-b px-4 py-3 lg:px-6">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileOpen(true)}>
-                <Menu className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-          </Sheet>
+          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileOpen(true)}>
+            <Menu className="h-5 w-5" />
+          </Button>
           <div className="flex items-center gap-2">
             {activeModule && (
               <>
@@ -234,13 +252,12 @@ export default function Home() {
           </div>
           <div className="ml-auto hidden sm:flex items-center gap-2">
             <span className="text-xs text-muted-foreground">
-              {MODULES.length} modules IA · z-ai-web-dev-sdk
+              {MODULES.length} modules · z-ai-web-dev-sdk
             </span>
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
           </div>
         </header>
 
-        {/* Module content */}
         <main className="flex-1 overflow-y-auto">
           <div className="container max-w-7xl mx-auto p-4 lg:p-6">
             <Suspense fallback={<ModuleFallback />}>

@@ -52,3 +52,53 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# Database
+db/*.db
+db/*.db-journal
+db/*.db-wal
+db/*.db-shm
+
+# Generated videos (large files)
+public/videos/*.mp4
+public/videos/*.jpg
+public/videos/*.png
+!public/videos/.gitkeep
+
+# Generated music
+public/music/*.mp3
+!public/music/.gitkeep
+
+# Uploaded files
+public/uploads/
+!public/uploads/.gitkeep
+
+# Temp files
+tmp/
+.cache/
+.tmp/
+
+# Download directory (local artifacts)
+download/
+
+# Sandbox internal
+.zscripts/
+.zscripts/dev.pid
+
+# Download directory (local artifacts)
+/download/
+
+# Examples
+/examples/
+
+# Tests artifacts
+/tests/
+
+# Mini-services (sandbox)
+/mini-services/
+
+# Upload directory
+/upload/
+
+# Caddy config (sandbox)
+Caddyfile

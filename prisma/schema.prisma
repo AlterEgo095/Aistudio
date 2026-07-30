@@ -1,9 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -29,4 +26,161 @@ model Post {
   authorId  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model VideoProject {
+  id           String   @id @default(cuid())
+  prompt       String
+  duration     Int      // seconds
+  style        String
+  language     String
+  voice        String
+  quality      String
+  fastMode     Boolean  @default(false)
+  withVoiceover Boolean @default(true)
+  withSubtitles Boolean @default(true)
+  withMusic    Boolean  @default(false)
+  musicTrack   String?
+  transition   String   @default("fade")
+  videoUrl     String?
+  thumbnailUrl String?
+  fileSize     Int?
+  status       String   @default("pending") // pending, processing, success, failed
+  scenesJson   String?  // JSON-stringified scenes
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([createdAt])
+  @@index([status])
+}
+
+model MusicTrack {
+  id          String   @id @default(cuid())
+  name        String
+  category    String   // ambient, cinematic, upbeat, calm, electronic
+  filePath    String
+  duration    Float    // seconds
+  source      String   @default("generated") // generated, uploaded
+  createdAt   DateTime @default(now())
+
+  @@index([category])
+}
+
+// ===== AI FILM STUDIO MODELS =====
+
+model Series {
+  id          String   @id @default(cuid())
+  title       String
+  genre       String   @default("drama")
+  logline     String?
+  synopsis    String?
+  universe    String?
+  toneStyle   String?
+  targetAudience String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  seasons     Season[]
+  characters  Character[]
+  settings    Setting[]
+
+  @@index([createdAt])
+}
+
+model Season {
+  id          String   @id @default(cuid())
+  seriesId    String
+  number      Int
+  title       String?
+  arc         String?
+  synopsis    String?
+  createdAt   DateTime @default(now())
+
+  series      Series   @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  episodes    Episode[]
+
+  @@unique([seriesId, number])
+  @@index([seriesId])
+}
+
+model Episode {
+  id          String   @id @default(cuid())
+  seasonId    String
+  number      Int
+  title       String?
+  synopsis    String?
+  script      String?
+  status      String   @default("draft")
+  duration    Int      @default(60)
+  videoUrl    String?
+  thumbnailUrl String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  season      Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  scenes      Scene[]
+
+  @@unique([seasonId, number])
+  @@index([seasonId])
+}
+
+model Character {
+  id          String   @id @default(cuid())
+  seriesId    String
+  name        String
+  role        String   @default("supporting")
+  faceDescription  String?
+  bodyDescription  String?
+  costumeDescription String?
+  voiceId     String?
+  voiceStyle  String?
+  personality String?
+  habits      String?
+  emotions    String?
+  history     String?
+  goals       String?
+  relationships String?
+  referenceImageUrl String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  series      Series   @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@index([seriesId])
+}
+
+model Setting {
+  id          String   @id @default(cuid())
+  seriesId    String
+  name        String
+  description String?
+  visualPrompt String?
+  timeOfDay   String?
+  createdAt   DateTime @default(now())
+
+  series      Series   @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@index([seriesId])
+}
+
+model Scene {
+  id          String   @id @default(cuid())
+  episodeId   String
+  number      Int
+  shotType    String?
+  cameraMovement String?
+  lighting    String?
+  lens        String?
+  depthOfField String?
+  description String?
+  dialogue    String?
+  narration   String?
+  settingId   String?
+  duration    Int      @default(10)
+  createdAt   DateTime @default(now())
+
+  episode     Episode  @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+
+  @@index([episodeId])
 }

@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Sparkles, Send, Brain, Trash2, User, Bot, Volume2 } from 'lucide-react'
+import { Sparkles, Send, Brain, Trash2, User, Bot, Volume2, Square } from 'lucide-react'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { Spinner } from './shared'
 import { toast } from 'sonner'
@@ -15,7 +15,7 @@ import { toast } from 'sonner'
 interface Msg {
   role: 'user' | 'assistant'
   content: string
-  ttsUrl?: string | null
+  streaming?: boolean
 }
 
 const SUGGESTIONS = [
@@ -30,6 +30,7 @@ export function ChatModule() {
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
   const [loading, setLoading] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -38,32 +39,103 @@ export function ChatModule() {
     }
   }, [messages, loading])
 
+  useEffect(() => () => abortRef.current?.abort(), [])
+
   const send = async (text?: string) => {
     const content = (text ?? input).trim()
     if (!content || loading) return
     const userMsg: Msg = { role: 'user', content }
-    const newMsgs = [...messages, userMsg]
+    const assistantMsg: Msg = { role: 'assistant', content: '', streaming: true }
+    const newMsgs = [...messages, userMsg, assistantMsg]
     setMessages(newMsgs)
     setInput('')
     setLoading(true)
+
+    const controller = new AbortController()
+    abortRef.current = controller
+
     try {
-      const res = await fetch('/api/chat', {
+      const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: newMsgs.map((m) => ({ role: m.role, content: m.content })),
+          messages: newMsgs
+            .filter((m) => !(m.role === 'assistant' && m.streaming))
+            .map((m) => ({ role: m.role, content: m.content })),
           thinking,
         }),
+        signal: controller.signal,
       })
+
       if (!res.ok) throw new Error('Erreur API')
-      const data = await res.json()
-      setMessages([...newMsgs, { role: 'assistant', content: data.content }])
+
+      const reader = res.body?.getReader()
+      if (!reader) throw new Error('Stream unavailable')
+
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let acc = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const payload = line.slice(6)
+          if (payload === '[DONE]') continue
+          try {
+            const data = JSON.parse(payload)
+            if (data.delta) {
+              acc += data.delta
+              setMessages((prev) =>
+                prev.map((m, i) =>
+                  i === newMsgs.length - 1 ? { ...m, content: acc, streaming: true } : m,
+                ),
+              )
+            }
+            if (data.error) throw new Error(data.error)
+          } catch (e: any) {
+            if (e instanceof SyntaxError) continue
+            throw e
+          }
+        }
+      }
+
+      setMessages((prev) =>
+        prev.map((m, i) =>
+          i === newMsgs.length - 1 ? { ...m, content: acc || '(réponse vide)', streaming: false } : m,
+        ),
+      )
     } catch (e: any) {
-      toast.error('Échec: ' + (e?.message ?? ''))
-      setMessages([...newMsgs, { role: 'assistant', content: '⚠️ Erreur: ' + (e?.message ?? '') }])
+      if (e?.name === 'AbortError') {
+        setMessages((prev) =>
+          prev.map((m, i) =>
+            i === newMsgs.length - 1
+              ? { ...m, content: m.content + '\n\n_(génération interrompue)_', streaming: false }
+              : m,
+          ),
+        )
+      } else {
+        toast.error('Échec: ' + (e?.message ?? ''))
+        setMessages((prev) =>
+          prev.map((m, i) =>
+            i === newMsgs.length - 1
+              ? { ...m, content: '⚠️ Erreur: ' + (e?.message ?? ''), streaming: false }
+              : m,
+          ),
+        )
+      }
     } finally {
       setLoading(false)
+      abortRef.current = null
     }
+  }
+
+  const stop = () => {
+    abortRef.current?.abort()
   }
 
   const speak = async (text: string, idx: number) => {
@@ -80,9 +152,6 @@ export function ChatModule() {
       for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i)
       const blob = new Blob([bytes], { type: data.mime })
       const url = URL.createObjectURL(blob)
-      setMessages((prev) =>
-        prev.map((m, i) => (i === idx ? { ...m, ttsUrl: url } : m)),
-      )
       const audio = new Audio(url)
       audio.play()
     } catch (e: any) {
@@ -99,7 +168,7 @@ export function ChatModule() {
             Assistant IA (LLM)
           </h2>
           <p className="text-muted-foreground mt-1">
-            Discutez avec un grand modèle de langage. Activez le raisonnement pour les tâches complexes.
+            Chat en streaming temps réel avec raisonnement activable. Bouton "Écouter" sur chaque réponse.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -110,11 +179,7 @@ export function ChatModule() {
             </Label>
           </div>
           {messages.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setMessages([])}
-            >
+            <Button variant="ghost" size="sm" onClick={() => setMessages([])}>
               <Trash2 className="h-4 w-4 mr-1" /> Vider
             </Button>
           )}
@@ -156,35 +221,42 @@ export function ChatModule() {
                 )}
                 <div
                   className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                    m.role === 'user'
-                      ? 'bg-violet-500 text-white'
-                      : 'bg-muted'
+                    m.role === 'user' ? 'bg-violet-500 text-white' : 'bg-muted'
                   }`}
                 >
                   {m.role === 'assistant' ? (
                     <>
-                      <MarkdownRenderer content={m.content} />
-                      <div className="mt-2 pt-2 border-t border-border/50 flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => speak(m.content, i)}
-                        >
-                          <Volume2 className="h-3 w-3 mr-1" /> Écouter
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => {
-                            navigator.clipboard.writeText(m.content)
-                            toast.success('Copié')
-                          }}
-                        >
-                          Copier
-                        </Button>
-                      </div>
+                      {m.content ? (
+                        <MarkdownRenderer content={m.content} />
+                      ) : (
+                        <span className="text-sm text-muted-foreground italic">En train de réfléchir...</span>
+                      )}
+                      {m.streaming && m.content && (
+                        <span className="inline-block ml-1 h-4 w-2 animate-pulse bg-violet-500 align-middle" />
+                      )}
+                      {!m.streaming && m.content && (
+                        <div className="mt-2 pt-2 border-t border-border/50 flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => speak(m.content, i)}
+                          >
+                            <Volume2 className="h-3 w-3 mr-1" /> Écouter
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => {
+                              navigator.clipboard.writeText(m.content)
+                              toast.success('Copié')
+                            }}
+                          >
+                            Copier
+                          </Button>
+                        </div>
+                      )}
                     </>
                   ) : (
                     <p className="whitespace-pre-wrap text-sm">{m.content}</p>
@@ -197,7 +269,7 @@ export function ChatModule() {
                 )}
               </div>
             ))}
-            {loading && (
+            {loading && messages[messages.length - 1]?.role === 'assistant' && !messages[messages.length - 1]?.content && (
               <div className="flex gap-3">
                 <div className="flex-shrink-0 h-8 w-8 rounded-full bg-violet-500/10 flex items-center justify-center">
                   <Bot className="h-4 w-4 text-violet-500" />
@@ -224,9 +296,15 @@ export function ChatModule() {
               className="resize-none min-h-[44px] max-h-32"
               rows={1}
             />
-            <Button onClick={() => send()} disabled={loading || !input.trim()} size="icon" className="h-11 w-11">
-              <Send className="h-4 w-4" />
-            </Button>
+            {loading ? (
+              <Button onClick={stop} variant="destructive" size="icon" className="h-11 w-11">
+                <Square className="h-4 w-4" fill="currentColor" />
+              </Button>
+            ) : (
+              <Button onClick={() => send()} disabled={!input.trim()} size="icon" className="h-11 w-11">
+                <Send className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       </Card>
