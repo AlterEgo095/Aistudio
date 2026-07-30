@@ -319,11 +319,11 @@ export async function generateKeyframes(
 
   const zai = await getZai()
 
-  // Generate in parallel batches of 3 (optimized for speed + rate limits)
-  onProgress({ step: 'keyframes', status: 'running', message: `Génération parallèle (${scenes.length} keyframes, batch de 3)...`, progress: 0 })
+  // Generate in parallel batches of 2 (balanced for speed + rate limits)
+  onProgress({ step: 'keyframes', status: 'running', message: `Génération parallèle (${scenes.length} keyframes, batch de 2)...`, progress: 0 })
 
-  for (let i = 0; i < scenes.length; i += 3) {
-    const batch = scenes.slice(i, i + 3)
+  for (let i = 0; i < scenes.length; i += 2) {
+    const batch = scenes.slice(i, i + 2)
     const results = await Promise.allSettled(
       batch.map(async (scene) => generateSingleKeyframe(scene, workDir, zai, presetStyleSuffix)),
     )
@@ -331,6 +331,11 @@ export async function generateKeyframes(
     for (const r of results) {
       if (r.status === 'fulfilled') keyframePaths.push(r.value)
       else throw new Error('Keyframe generation failed')
+    }
+
+    // Small delay between batches to avoid rate limits
+    if (i + 2 < scenes.length) {
+      await new Promise((r) => setTimeout(r, 1500))
     }
 
     onProgress({
