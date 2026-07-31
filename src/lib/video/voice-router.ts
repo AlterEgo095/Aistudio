@@ -44,12 +44,13 @@ async function generateWithPiper(text: string, language: string, outputPath: str
   const modelPath = PIPER_MODELS[language] ?? PIPER_MODELS['fr']
   if (!modelPath) throw new Error(`No Piper model for language: ${language}`)
 
-  // Write text to temp file (Piper reads from stdin or file)
+  // Write text to temp file
   const textFilePath = outputPath.replace('.wav', '-input.txt')
   await fs.writeFile(textFilePath, text.slice(0, 2000), 'utf-8')
 
+  // Use bash explicitly for pipe support
   await execAsync(
-    `cat "${textFilePath}" | ${PIPER_BIN} --model "${modelPath}" --output_file "${outputPath}"`,
+    `bash -c 'cat "${textFilePath}" | "${PIPER_BIN}" --model "${modelPath}" --output_file "${outputPath}"'`,
     { timeout: 30000 },
   )
 
@@ -75,71 +76,74 @@ export interface VoiceProfile {
 }
 
 // Pre-defined voice profiles for different content types
+// MINIMAL ffmpeg transformation to avoid artifacts — let the TTS engine do the work
 export const VOICE_PROFILES: Record<string, VoiceProfile> = {
-  // Dark Tech narrator — deep, mysterious
+  // Dark Tech narrator — natural, no pitch distortion
   'darktech-narrator': {
     name: 'Narrateur Dark Tech',
-    description: 'Voix grave et mystérieuse pour vulgarisation',
-    config: { engine: 'gtts', language: 'fr', gender: 'male', tone: 'dramatic', speed: 0.9, pitch: 0 },
-    ffmpegFilter: 'asetrate=44100*0.85,aresample=44100,atempo=0.95,equalizer=f=150:t=q:w=2:g=3,equalizer=f=3000:t=q:w=1:g=-2',
+    description: 'Voix naturelle pour vulgarisation',
+    config: { engine: 'piper', language: 'fr', gender: 'female', tone: 'dramatic', speed: 0.85, pitch: 0 },
+    // No ffmpeg filter — Piper sounds natural already
+    ffmpegFilter: undefined,
   },
-  // Documentary narrator — warm, authoritative
+  // Documentary narrator — natural, warm
   'documentary-narrator': {
     name: 'Narrateur Documentaire',
     description: 'Voix posée pour documentaires',
-    config: { engine: 'gtts', language: 'fr', gender: 'male', tone: 'warm', speed: 0.95, pitch: 0 },
-    ffmpegFilter: 'asetrate=44100*0.92,aresample=44100,atempo=0.97,equalizer=f=200:t=q:w=2:g=2',
+    config: { engine: 'piper', language: 'fr', gender: 'female', tone: 'warm', speed: 0.88, pitch: 0 },
+    ffmpegFilter: undefined,
   },
-  // Advertising voice — energetic, bright
+  // Advertising voice — clear, natural
   'ad-voice': {
     name: 'Voix Publicitaire',
-    description: 'Voix énergique pour pubs',
-    config: { engine: 'gtts', language: 'fr', gender: 'female', tone: 'energetic', speed: 1.0, pitch: 0 },
-    ffmpegFilter: 'asetrate=44100*1.1,aresample=44100,atempo=1.02,equalizer=f=5000:t=q:w=1:g=3',
+    description: 'Voix claire pour pubs',
+    config: { engine: 'piper', language: 'fr', gender: 'female', tone: 'energetic', speed: 0.92, pitch: 0 },
+    ffmpegFilter: undefined,
   },
   // Tutorial voice — clear, moderate
   'tutorial-voice': {
     name: 'Voix Tutoriel',
     description: 'Voix claire pour tutoriels',
-    config: { engine: 'gtts', language: 'fr', gender: 'female', tone: 'calm', speed: 0.95, pitch: 0 },
-    ffmpegFilter: 'asetrate=44100*1.05,aresample=44100,atempo=0.98,equalizer=f=3000:t=q:w=1:g=2',
+    config: { engine: 'piper', language: 'fr', gender: 'female', tone: 'calm', speed: 0.88, pitch: 0 },
+    ffmpegFilter: undefined,
   },
-  // Character voices for Film Studio
+  // Character voices for Film Studio — subtle differentiation only
   'character-protagonist': {
     name: 'Protagoniste',
     description: 'Voix héroïque',
-    config: { engine: 'gtts', language: 'fr', gender: 'male', tone: 'dramatic', speed: 0.95, pitch: 0 },
-    ffmpegFilter: 'asetrate=44100*0.88,aresample=44100,atempo=0.96,equalizer=f=150:t=q:w=2:g=2',
+    config: { engine: 'piper', language: 'fr', gender: 'female', tone: 'dramatic', speed: 0.9, pitch: 0 },
+    ffmpegFilter: 'equalizer=f=200:t=q:w=2:g=1', // very subtle bass boost only
   },
   'character-antagonist': {
     name: 'Antagoniste',
-    description: 'Voix sombre et menaçante',
-    config: { engine: 'gtts', language: 'fr', gender: 'male', tone: 'dramatic', speed: 0.88, pitch: 0 },
-    ffmpegFilter: 'asetrate=44100*0.72,aresample=44100,atempo=0.9,equalizer=f=100:t=q:w=2:g=5,equalizer=f=5000:t=q:w=1:g=-4,tremolo=f=0.5:d=0.2',
+    description: 'Voix sombre',
+    config: { engine: 'piper', language: 'fr', gender: 'female', tone: 'dramatic', speed: 0.82, pitch: 0 },
+    ffmpegFilter: 'equalizer=f=100:t=q:w=2:g=2', // subtle bass only, NO tremolo
   },
   'character-female-lead': {
     name: 'Héroïne',
     description: 'Voix féminine principale',
-    config: { engine: 'gtts', language: 'fr', gender: 'female', tone: 'warm', speed: 0.95, pitch: 0 },
-    ffmpegFilter: 'asetrate=44100*1.12,aresample=44100,atempo=0.97,equalizer=f=4000:t=q:w=1:g=2',
+    config: { engine: 'piper', language: 'fr', gender: 'female', tone: 'warm', speed: 0.9, pitch: 0 },
+    ffmpegFilter: undefined,
   },
   'character-elder': {
     name: 'Aîné',
     description: 'Voix âgée, sage',
-    config: { engine: 'gtts', language: 'fr', gender: 'male', tone: 'calm', speed: 0.85, pitch: 0 },
-    ffmpegFilter: 'asetrate=44100*0.82,aresample=44100,atempo=0.85,equalizer=f=200:t=q:w=2:g=-2',
+    config: { engine: 'piper', language: 'fr', gender: 'female', tone: 'calm', speed: 0.8, pitch: 0 },
+    ffmpegFilter: undefined,
   },
   'character-child': {
     name: 'Enfant',
     description: 'Voix jeune',
-    config: { engine: 'gtts', language: 'fr', gender: 'female', tone: 'energetic', speed: 1.05, pitch: 0 },
-    ffmpegFilter: 'asetrate=44100*1.3,aresample=44100,atempo=1.08,equalizer=f=5000:t=q:w=1:g=4',
+    config: { engine: 'piper', language: 'fr', gender: 'female', tone: 'energetic', speed: 0.95, pitch: 0 },
+    ffmpegFilter: undefined,
   },
   // Default narrator
   'default': {
     name: 'Narrateur Standard',
     description: 'Voix neutre',
-    config: { engine: 'gtts', language: 'fr', gender: 'neutral', tone: 'narrator', speed: 0.92, pitch: 0 },
+    config: { engine: 'piper', language: 'fr', gender: 'female', tone: 'narrator', speed: 0.88, pitch: 0 },
+    ffmpegFilter: undefined,
   },
 }
 
@@ -272,73 +276,84 @@ async function applyVoiceTransformation(inputPath: string, outputPath: string, f
 }
 
 /**
- * MAIN: Generate speech with automatic engine selection
- * Routes to the best available TTS engine based on language
+ * MAIN: Generate speech — sentence by sentence with natural pauses
+ * No more rushed, robotic, monolithic TTS. Each sentence gets its own
+ * generation + 800ms silence between sentences for natural breathing.
  */
 export async function generateSpeech(
   text: string,
   profile: VoiceProfile,
   outputPath: string,
 ): Promise<{ duration: number; engine: TTSEngine }> {
-  const { engine, language, speed } = profile.config
+  const { language, speed } = profile.config
   const tempDir = path.dirname(outputPath)
   await fs.mkdir(tempDir, { recursive: true })
 
-  const rawPath = path.join(tempDir, `tts-raw-${Date.now()}.wav`)
-  let usedEngine: TTSEngine = engine
+  // Split into sentences for natural pacing
+  const sentences = text
+    .split(/(?<=[.!?。！？])\s+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 0)
 
-  // Strategy: Try gTTS first (best French), fallback to espeak, then Z.ai
-  const isFrench = language === 'fr' || language === 'francais' || language === 'français'
+  if (sentences.length === 0) sentences.push(text.slice(0, 500))
+
   const isChinese = language === 'zh' || language === 'chinois' || language === 'chinese'
+  const langCode = language === 'francais' || language === 'français' ? 'fr' : language.slice(0, 2).toLowerCase()
+  let usedEngine: TTSEngine = 'piper'
+  const sentencePaths: string[] = []
 
-  if (isChinese) {
-    // Chinese → use Z.ai (native Chinese voices)
-    try {
-      await generateWithZai(text, 'tongtong', speed, rawPath)
-      usedEngine = 'zai'
-    } catch (e: any) {
-      console.warn('Z.ai TTS failed, falling back to espeak:', e?.message)
-      await generateWithEspeak(text, 'zh', speed, 50, rawPath)
-      usedEngine = 'espeak'
-    }
-  } else {
-    // French or other → try Piper first (best offline quality), then gTTS, then espeak, then Z.ai
-    try {
-      await generateWithPiper(text, language === 'francais' || language === 'français' ? 'fr' : language.slice(0, 2).toLowerCase(), rawPath)
-      usedEngine = 'piper'
-    } catch (e: any) {
-      console.warn('Piper TTS failed, falling back to gTTS:', e?.message)
-      try {
-        const slow = speed < 0.95
-        await generateWithGTTS(text, language, slow, rawPath)
-        usedEngine = 'gtts'
-      } catch (e2: any) {
-        console.warn('gTTS failed, falling back to espeak:', e2?.message)
-        try {
-          await generateWithEspeak(text, language, speed, profile.config.pitch || 50, rawPath)
-          usedEngine = 'espeak'
-        } catch (e3: any) {
-          console.warn('espeak failed, falling back to Z.ai:', e3?.message)
-          await generateWithZai(text, 'tongtong', speed, rawPath)
-          usedEngine = 'zai'
+  for (let i = 0; i < sentences.length; i++) {
+    const sentence = sentences[i]
+    const sentencePath = path.join(tempDir, `sentence-${i}.wav`)
+
+    if (isChinese) {
+      try { await generateWithZai(sentence, 'tongtong', speed, sentencePath); usedEngine = 'zai' }
+      catch { await generateWithEspeak(sentence, 'zh', speed, 50, sentencePath); usedEngine = 'espeak' }
+    } else {
+      try { await generateWithPiper(sentence, langCode, sentencePath); usedEngine = 'piper' }
+      catch {
+        try { await generateWithGTTS(sentence, language, speed < 0.95, sentencePath); usedEngine = 'gtts' }
+        catch {
+          try { await generateWithEspeak(sentence, language, speed, 50, sentencePath); usedEngine = 'espeak' }
+          catch { await generateWithZai(sentence, 'tongtong', speed, sentencePath); usedEngine = 'zai' }
         }
       }
     }
+
+    if (profile.ffmpegFilter) {
+      const t = sentencePath.replace('.wav', '-t.wav')
+      await applyVoiceTransformation(sentencePath, t, profile.ffmpegFilter)
+      try { await fs.unlink(sentencePath) } catch {}
+      sentencePaths.push(t)
+    } else {
+      sentencePaths.push(sentencePath)
+    }
   }
 
-  // Apply voice transformation (pitch, EQ, etc.)
-  await applyVoiceTransformation(rawPath, outputPath, profile.ffmpegFilter)
+  // Create silence file for natural pauses (800ms)
+  const silencePath = path.join(tempDir, 'silence.wav')
+  await execAsync(`ffmpeg -y -f lavfi -i "anullsrc=channel_layout=mono:sample_rate=22050" -t 0.8 "${silencePath}"`, { timeout: 10000 })
 
-  // Cleanup raw
-  try { await fs.unlink(rawPath) } catch {}
+  // Concat: sentence1, silence, sentence2, silence, ...
+  const concatList = path.join(tempDir, 'speech-concat.txt')
+  const entries: string[] = []
+  for (let i = 0; i < sentencePaths.length; i++) {
+    entries.push(`file '${sentencePaths[i]}'`)
+    if (i < sentencePaths.length - 1) entries.push(`file '${silencePath}'`)
+  }
+  await fs.writeFile(concatList, entries.join('\n'))
 
-  // Get duration
+  await execAsync(`ffmpeg -y -f concat -safe 0 -i "${concatList}" -ar 44100 -ac 1 "${outputPath}"`, { timeout: 30000 })
+
+  // Cleanup
+  for (const p of sentencePaths) { try { await fs.unlink(p) } catch {} }
+  try { await fs.unlink(silencePath) } catch {}
+  try { await fs.unlink(concatList) } catch {}
+
   let duration = 5
-  try {
-    const { stdout } = await execAsync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${outputPath}"`)
-    duration = parseFloat(stdout.trim())
-  } catch {}
+  try { const { stdout } = await execAsync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${outputPath}"`); duration = parseFloat(stdout.trim()) } catch {}
 
+  console.log(`[Voice Router] ${sentences.length} sentences, ${duration.toFixed(1)}s, engine: ${usedEngine}`)
   return { duration, engine: usedEngine }
 }
 
