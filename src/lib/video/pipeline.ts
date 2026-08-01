@@ -646,6 +646,7 @@ export async function composeFinalVideo(
   opts: PremiumVideoOptions,
   onProgress: ProgressCallback,
   hookPath?: string | null,
+  hookText?: string | null,
 ): Promise<{ outputPath: string; publicUrl: string; duration: number; fileSize: number; thumbnailUrl?: string }> {
   onProgress({ step: 'compose', status: 'running', message: 'Composition ffmpeg...' })
 
@@ -654,7 +655,9 @@ export async function composeFinalVideo(
   await fs.mkdir(normalizedDir, { recursive: true })
 
   // Resolve aspect ratio
-  const ar = ASPECT_RATIOS.find((a) => a.id === (opts.aspectRatio ?? '16:9')) ?? ASPECT_RATIOS[0]
+  // Auto-select aspect ratio for Shorts Viral preset
+  const effectiveAspectRatio = opts.presetId === 'shorts-viral' ? (opts.aspectRatio ?? '9:16') : (opts.aspectRatio ?? '16:9')
+  const ar = ASPECT_RATIOS.find((a) => a.id === effectiveAspectRatio) ?? ASPECT_RATIOS[0]
   const W = ar.width
   const H = ar.height
 
@@ -855,10 +858,30 @@ export async function composeFinalVideo(
     audioFilter = `-map 0:v`
   }
 
-  // Video filter chain: fade in/out + subtitles + watermark
+  // Video filter chain: fade in/out + subtitles + watermark + hook overlay
   const vfilters: string[] = []
-  vfilters.push(`fade=t=in:st=0:d=0.5`)
-  vfilters.push(`fade=t=out:st=${totalDuration - 0.5}:d=0.5`)
+  // Shorter fades for Shorts Viral (snappier)
+  if (opts.presetId === 'shorts-viral') {
+    vfilters.push(`fade=t=in:st=0:d=0.2`)
+    vfilters.push(`fade=t=out:st=${totalDuration - 0.2}:d=0.2`)
+  } else {
+    vfilters.push(`fade=t=in:st=0:d=0.5`)
+    vfilters.push(`fade=t=out:st=${totalDuration - 0.5}:d=0.5`)
+  }
+
+  // ===== HOOK TEXT OVERLAY for Shorts Viral =====
+  // Large text at top of video for first 3 seconds (the hook phrase)
+  if (opts.presetId === 'shorts-viral' && hookText) {
+    try {
+      const hookOverlayPath = path.join(workDir, 'hook-overlay-text.txt')
+      // Escape for textfile
+      await fs.writeFile(hookOverlayPath, (hookText ?? '').slice(0, 60), 'utf-8')
+      const hookFontSize = Math.round(H * 0.06) // 6% of height = big
+      vfilters.push(
+        `drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile='${hookOverlayPath}':fontcolor=white:fontsize=${hookFontSize}:x=(w-text_w)/2:y=${Math.round(H * 0.05)}:shadowcolor=black@0.8:shadowx=3:shadowy=3:enable='between(t,0,3)'`
+      )
+    } catch {}
+  }
 
   // Subtitles
   if (subtitlesPath) {
@@ -1012,13 +1035,16 @@ export async function runPremiumPipeline(
 
     // ===== NEW: Generate cinematic 3s hook =====
     let hookPath: string | null = null
+    let hookText: string | null = null
     try {
       onProgress({ step: 'hook', status: 'running', message: 'Génération accroche cinématographique 3s...', progress: 0 })
-      const hookText = await generateHookPhrase(opts.prompt)
+      hookText = await generateHookPhrase(opts.prompt)
       const workDir = path.join(TMP_DIR, `hook-${Date.now()}`)
       await fs.mkdir(workDir, { recursive: true })
       hookPath = path.join(workDir, 'hook.mp4')
-      const ar = ASPECT_RATIOS.find((a) => a.id === (opts.aspectRatio ?? '16:9')) ?? ASPECT_RATIOS[0]
+      // Auto-select aspect ratio for Shorts Viral preset
+  const effectiveAspectRatio = opts.presetId === 'shorts-viral' ? (opts.aspectRatio ?? '9:16') : (opts.aspectRatio ?? '16:9')
+  const ar = ASPECT_RATIOS.find((a) => a.id === effectiveAspectRatio) ?? ASPECT_RATIOS[0]
       await generateCinematicHook({
         prompt: scenes[0]?.keyframePrompt ?? opts.prompt,
         duration: 3,
@@ -1026,7 +1052,7 @@ export async function runPremiumPipeline(
         height: ar.height,
         outputPath: hookPath,
       }, hookText || opts.prompt.slice(0, 50))
-      onProgress({ step: 'hook', status: 'done', message: `Hook généré: "${hookText?.slice(0, 40)}..."`, progress: 100 })
+      onProgress({ step: 'hook', status: 'done', message: `Hook généré: "${(hookText ?? '').slice(0, 40)}..."`, progress: 100 })
     } catch (e: any) {
       console.warn('Hook generation failed:', e?.message)
       onProgress({ step: 'hook', status: 'done', message: 'Hook ignoré', progress: 100 })
@@ -1040,7 +1066,9 @@ export async function runPremiumPipeline(
       onProgress({ step: 'broll', status: 'running', message: 'Insertion transitions B-roll immersives...', progress: 0 })
       const bRollType = getBRollForTone(opts.style)
       const workDir = path.dirname(segmentPaths[0])
-      const ar = ASPECT_RATIOS.find((a) => a.id === (opts.aspectRatio ?? '16:9')) ?? ASPECT_RATIOS[0]
+      // Auto-select aspect ratio for Shorts Viral preset
+  const effectiveAspectRatio = opts.presetId === 'shorts-viral' ? (opts.aspectRatio ?? '9:16') : (opts.aspectRatio ?? '16:9')
+  const ar = ASPECT_RATIOS.find((a) => a.id === effectiveAspectRatio) ?? ASPECT_RATIOS[0]
       finalSegmentPaths = await insertBRollTransitions(
         segmentPaths,
         bRollType,
@@ -1064,6 +1092,7 @@ export async function runPremiumPipeline(
       opts,
       onProgress,
       hookPath,
+      hookText,
     )
 
     // Persist final result

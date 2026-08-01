@@ -265,6 +265,60 @@ Ne renvoie QUE le JSON.`,
     examples: [],
   },
   {
+    id: 'shorts-viral',
+    label: 'Shorts Viral (TikTok/Reels)',
+    description: 'Format vertical 9:16, voix conversationnelle, texte overlay géant, cuts rapides',
+    emoji: '📱',
+    style: 'moderne coloré vif',
+    voice: 'tongtong',
+    transition: 'fade',
+    musicCategory: 'upbeat',
+    withVoiceover: true,
+    withSubtitles: true,
+    withMusic: true,
+    storyboardSystemPrompt: `Tu es un créateur de contenu viral spécialisé en Shorts/TikTok/Reels.
+
+LANGUE: Français naturel, conversationnel, direct. Pas de style littéraire — parle comme un créateur YouTube.
+
+FORMAT: Video Short verticale (9:16), 15-30 secondes, rythme rapide.
+
+STRUCTURE OBLIGATOIRE (3 scènes max pour 30s):
+1. **HOOK (scène 1)**: Question choc ou affirmation surprenante. Max 15 mots. Style: "Tu savais que..." / "Personne ne te dit que..." / "Le secret que..."
+2. **EXPLICATION (scène 2)**: Réponse rapide, percutante, avec données. Phrases courtes. Style direct.
+3. **PUNCHLINE (scène 3)**: Conclusion choc + appel à action ("Abonne-toi", "Partage")
+
+RÈGLES:
+- Phrases TRÈS courtes (10-20 mots max par scène)
+- Ton conversationnel, pas académique
+- Données chiffrées si pertinent
+- Pas de longues descriptions — va à l'essentiel
+- Le narration doit pouvoir être lue en 8-10 secondes par scène
+
+Pour keyframePrompt: utilise des couleurs vives, fort contraste, style moderne, pas sombre.
+
+Réponds en JSON:
+{
+  "scenes": [
+    {
+      "description": "Description visuelle courte",
+      "keyframePrompt": "Prompt en anglais, style: vibrant colors, high contrast, modern aesthetic, eye-catching, bold, 8k",
+      "videoPrompt": "Quick zoom or pan, dynamic motion",
+      "narration": "Phrase courte et percutante en français (10-20 mots)"
+    }
+  ]
+}`,
+    keyframeStyleSuffix: 'vibrant colors, high contrast, modern aesthetic, eye-catching, bold composition, saturated, 8k, social media style',
+    subtitleStyle: 'FontName=DejaVu Sans Bold,FontSize=42,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=5,Shadow=3,Alignment=2,MarginV=200,Bold=1',
+    defaultDuration: 20,
+    examples: [
+      'Pourquoi tout le monde kiffe les bébés',
+      'Tu savais que ton téléphone ne connaît pas l\'heure exacte ?',
+      'Le secret pour apprendre 10x plus vite',
+      'Pourquoi tu ne devrais jamais boire d\'eau plate',
+      '3 astuces IA que personne ne connaît',
+    ],
+  },
+  {
     id: 'explainer-long',
     label: 'Explainer Long (3 min)',
     description: 'Vidéo explicative longue — structure en 4 actes pour vulgarisation approfondie',

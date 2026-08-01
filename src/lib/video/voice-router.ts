@@ -145,6 +145,13 @@ export const VOICE_PROFILES: Record<string, VoiceProfile> = {
     config: { engine: 'piper', language: 'fr', gender: 'female', tone: 'narrator', speed: 0.88, pitch: 0 },
     ffmpegFilter: undefined,
   },
+  // Shorts Viral — conversational, natural, fast-paced
+  'shorts-viral-voice': {
+    name: 'Voix Shorts Viral',
+    description: 'Voix conversationnelle naturelle pour TikTok/Reels',
+    config: { engine: 'piper', language: 'fr', gender: 'female', tone: 'energetic', speed: 0.95, pitch: 0 },
+    ffmpegFilter: undefined,
+  },
 }
 
 /**
@@ -158,6 +165,7 @@ export function getVoiceProfileForPreset(presetId: string): VoiceProfile {
     documentary: 'documentary-narrator',
     product: 'ad-voice',
     reels: 'ad-voice',
+    'shorts-viral': 'shorts-viral-voice',
     custom: 'darktech-narrator',
   }
   const key = map[presetId] ?? 'default'

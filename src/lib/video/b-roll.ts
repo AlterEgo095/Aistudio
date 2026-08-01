@@ -41,7 +41,7 @@ export async function generateBRoll(config: BRollConfig, outputPath: string): Pr
 
     case 'abstract':
       // Abstract flowing colors
-      filter = `gradients=s=${width}x${height}:duration=${duration}:c0=0x${colorTheme}:c1=0xffffff:x0=0:y0=0:x1=${width}:y1=${height},wave=mode=1:intensity=2:fade=0.5,format=yuv420p`
+      filter = `gradients=s=${width}x${height}:duration=${duration}:c0=0x${colorTheme}:c1=0xffffff:x0=0:y0=0:x1=${width}:y1=${height},hue=s=30,format=yuv420p`
       break
 
     case 'particles':
